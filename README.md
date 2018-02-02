@@ -17,3 +17,5 @@ The resulting information will be saved in an Excel file.
 
 ## TODO
 - [ ] Save token in config
+
+![Screenshot](https://raw.githubusercontent.com/Brawl345/Get-DMAX-Links/master/screenshot.png)
