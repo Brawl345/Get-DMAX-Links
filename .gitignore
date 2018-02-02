@@ -1,0 +1,12 @@
+# Byte-compiled / optimized / DLL files / pip
+__pycache__/
+*.py[cod]
+*$py.class
+src/
+
+# No IDE specific files please
+.idea/
+
+# data
+config.ini
+*.xlsx
