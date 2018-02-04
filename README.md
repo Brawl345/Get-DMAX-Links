@@ -17,5 +17,6 @@ The resulting information will be saved in an Excel file.
 
 ## TODO
 - [ ] Save token in config
+- [ ] Specials ("standalone", e.g. https://www.dmax.de/api/show-detail/die-aquarium-profis)
 
 ![Screenshot](https://raw.githubusercontent.com/Brawl345/Get-DMAX-Links/master/screenshot.png)
