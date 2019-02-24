@@ -8,5 +8,4 @@ src/
 .idea/
 
 # data
-config.ini
 *.xlsx

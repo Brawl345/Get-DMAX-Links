@@ -1,191 +1,216 @@
 #!/usr/bin/env python3
-
-# TODO:
-# - Set sonicToken in a config file
-# - If 400 -> new token
 import argparse
 import logging
-import sys
-from os.path import exists
+import os
 
 import xlsxwriter
 from requests import get
+
+import formats
 
 logger = logging.getLogger("DMAX")
 logging.getLogger('requests.packages.urllib3.connectionpool').setLevel('WARNING')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-parser = argparse.ArgumentParser(description="Gets direct links for DMAX series")
-parser.add_argument("alternateId", type=str, help="alternateId of the series (last part of URL)")
-parser.add_argument("-s", metavar="Season", type=int, default=0, help="Season to get (default: 0 = all)")
-parser.add_argument("-e", metavar="Episode", type=int, default=0,
-                    help="Episode of season to get (default: 0 = all) - season MUST be set!")
-
-base_url = "https://www.dmax.de/"
-player_url = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
+BASE_URL = "https://www.dmax.de/"
+API_URL = BASE_URL + "api/show-detail/{0}"
+PLAYER_URL = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
+USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0"
 
 
-def get_sonic_token():
-    logger.info("Getting sonicToken")
+class WorkbookWriter:
+    """Wrapper around xlswriter."""
+
+    def __init__(self, filename):
+        """
+        Initializes the WorkookWriter class
+        :param filename: Name of XLS file
+        """
+        self.workbook = xlsxwriter.Workbook(filename)
+        self.worksheet = self.workbook.add_worksheet()
+        self.bold = self.workbook.add_format({'bold': True})
+        self.row = 0
+        self._col = 0
+        self.write_header()
+
+    def col(self, start=False):
+        """Returns the current column and moves to the next.
+           If start is True, it will move back to 0.
+        """
+        curcol = self._col
+        if start:
+            self._col = 0
+        else:
+            self._col += 1
+        return curcol
+
+    def write_header(self):
+        self.worksheet.write(self.row, self.col(), "Name", self.bold)
+        self.worksheet.write(self.row, self.col(), "Description", self.bold)
+        self.worksheet.write(self.row, self.col(), "File name", self.bold)
+        self.worksheet.write(self.row, self.col(), "Link", self.bold)
+        self.worksheet.write(self.row, self.col(start=True), "Command", self.bold)
+        self.row += 1
+
+    def __del__(self):
+        self.workbook.close()
+
+
+def main(showid, chosen_season=0, chosen_episode=0, includespecials=False):
+    if chosen_episode < 0 or chosen_season < 0:
+        print("ERROR: Episode/Season must be > 0.")
+        return
+    if chosen_episode > 0 and chosen_season == 0:
+        print("ERROR: Season must be set.")
+        return
+
+    logger.info("Getting show data")
     try:
-        req = get(base_url)
-    except Exception as exception:
-        logger.critical("Connection error: " + str(exception))
-        return None
+        req = get(API_URL.format(showid))
+    except Exception as e:
+        logger.critical("Connection error: {0}".format(str(e)))
+        return
+
+    if req.status_code != 200:
+        logger.error("This show does not exist.")
+        return
+
+    data = req.json()
+    if "errors" in data:
+        logger.error("This show does not exist.")
+        return
 
     cookies = req.cookies.get_dict()
     if "sonicToken" not in cookies:
         logger.error("No sonicToken found, can not proceed")
-        return None
-    return cookies["sonicToken"]
+        return
+    token = cookies["sonicToken"]
+    show = formats.DMAX(data)
 
+    episodes = []
+    if includespecials:
+        for special in show.specials:
+            episodes.append(special)
+    else:
+        if chosen_season == 0 and chosen_episode == 0:  # Get EVERYTHING
+            for season in show.seasons:
+                for episode in season.episodes:
+                    episodes.append(episode)
+        elif chosen_season > 0 and chosen_episode == 0:  # Get whole season
+            for season in show.seasons:
+                if season.number == chosen_season:
+                    for episode in season.episodes:
+                        episodes.append(episode)
+            if not episodes:
+                logger.error("This season does not exist.")
+                return
+        else:  # Get single episode
+            for season in show.seasons:
+                if season.number == chosen_season:
+                    for episode in season.episodes:
+                        if episode.episodeNumber == chosen_episode:
+                            episodes.append(episode)
+            if not episodes:
+                logger.error("Episode not found.")
+                return
 
-def get_dmax_ids(alternate_id, season, episode):
-    if season == 0 and episode > 0:
-        logger.critical("No season set, can not proceed.")
-        return None
-    series_url = base_url + "api/show-detail/" + alternate_id
-    logger.info("Contacting " + series_url)
-    try:
-        req = get(series_url)
-    except Exception as exception:
-        logger.critical("Connection error: " + str(exception))
-        return None
+    if not episodes:
+        logger.info("No Episodes to download.")
+        return
 
-    if req.status_code != 200:
-        logger.error("HTTP error code " + str(req.status_code))
-        return None
+    xlsname = "{0}.xlsx".format(showid)
+    file_num = 0
+    while os.path.isfile(xlsname):
+        file_num += 1
+        xlsname = "{0}-{1}.xlsx".format(showid, file_num)
+    xls = WorkbookWriter(xlsname)
 
-    data = req.json()
-    episode_data = data["videos"]["episode"]
+    for num, episode in enumerate(episodes):
+        logger.info("Getting link {0} of {1}".format(num + 1, len(episodes)))
+        if episode.season == "" and episode.episode == "":
+            filename = "{show_name} - {episode_name}".format(
+                show_name=show.show.name,
+                episode_name=episode.name
+            )
+        elif episode.season == "" and episode.episode != "":
+            filename = "{show_name} - S{season}E{episode} - {episode_name}".format(
+                show_name=show.show.name,
+                season=episode.season,
+                episode=episode.episode,
+                episode_name=episode.name
+            )
+        else:
+            filename = "{show_name} - S{season}E{episode} - {episode_name}".format(
+                show_name=show.show.name,
+                season=episode.season,
+                episode=episode.episode,
+                episode_name=episode.name
+            )
+        xls.worksheet.write(xls.row, xls.col(), episode.name)
+        xls.worksheet.write(xls.row, xls.col(), episode.description)
+        xls.worksheet.write(xls.row, xls.col(), filename)
 
-    video_data = []
-
-    if season == 0 and episode == 0:  # Get EVERYTHING
-        logger.info("Getting video ids of every epsiode from every season")
-        for s in episode_data:
-            for e in episode_data[s]:
-                episode_dict = dict()
-                episode_dict["id"] = e["id"]
-                episode_dict["name"] = e["name"]
-                episode_dict["description"] = e["description"]
-                episode_dict["season"] = e["seasonNumber"]
-                episode_dict["episode"] = e["episodeNumber"]
-                episode_dict["prettyName"] = "{show_name} - S{season}E{episode} - {episode_name}".format(
-                    show_name=data["show"]["name"],
-                    season=e["season"],
-                    episode=e["episode"],
-                    episode_name=e["name"]
-                )
-                video_data.append(episode_dict)
-    elif season > 0 and episode == 0:  # Get the whole season
-        logger.info("Getting video ids of every episode from season " + str(season))
         try:
-            for e in episode_data[str(season)]:
-                episode_dict = dict()
-                episode_dict["id"] = e["id"]
-                episode_dict["name"] = e["name"]
-                episode_dict["description"] = e["description"]
-                episode_dict["season"] = e["seasonNumber"]
-                episode_dict["episode"] = e["episodeNumber"]
-                episode_dict["prettyName"] = "{show_name} - S{season}E{episode} - {episode_name}".format(
-                    show_name=data["show"]["name"],
-                    season=e["season"],
-                    episode=e["episode"],
-                    episode_name=e["name"]
-                )
-                video_data.append(episode_dict)
-        except KeyError:
-            logger.error("Season does not exist!")
-            return None
-    else:  # Get single episode from season
-        logger.info("Getting video id of episode " + str(episode) + " from season " + str(season))
-        episode_dict = dict()
-        try:
-            s = episode_data[str(season)]
-        except KeyError:
-            logger.error("Season does not exist!")
-            return None
-        for e in s:  # Search every episode in season for given episode number
-            if e["episodeNumber"] == episode:
-                episode_dict["id"] = e["id"]
-                episode_dict["name"] = e["name"]
-                episode_dict["description"] = e["description"]
-                episode_dict["season"] = e["seasonNumber"]
-                episode_dict["episode"] = e["episodeNumber"]
-                episode_dict["prettyName"] = "{show_name} - S{season}E{episode} - {episode_name}".format(
-                    show_name=data["show"]["name"],
-                    season=e["season"],
-                    episode=e["episode"],
-                    episode_name=e["name"]
-                )
-                video_data.append(episode_dict)
-        if not episode_dict:
-            logger.error("Episode not found!")
-            return None
-
-    return video_data
-
-
-def get_dmax_links(token, video_data):
-    logger.info("Getting links of episodes, this can take a while!")
-    filename = args.alternateId + ".xlsx"
-    if exists(filename):
-        file_num = 1
-        filename = args.alternateId + "-1.xlsx"
-        if exists(filename):
-            while exists(args.alternateId + "-" + str(file_num) + ".xlsx"):
-                file_num += 1
-                filename = args.alternateId + "-" + str(file_num) + ".xlsx"
-    logger.info("Saving to " + filename)
-    workbook = xlsxwriter.Workbook(filename)
-    worksheet = workbook.add_worksheet()
-    bold = workbook.add_format({'bold': True})
-    worksheet.write(0, 0, "Name", bold)
-    worksheet.write(0, 1, "Description", bold)
-    worksheet.write(0, 2, "File name", bold)
-    worksheet.write(0, 3, "Link", bold)
-    worksheet.write(0, 4, "Command", bold)
-    row = 1
-    col = 0
-    for n, episode in enumerate(video_data):
-        logger.info("Getting link " + str(n + 1) + " of " + str(len(video_data)))
-        video_id = episode["id"]
-        try:
-            req = get(player_url + str(video_id), headers={
+            req = get(PLAYER_URL + episode.id, headers={
                 "Authorization": "Bearer " + token,
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0"
+                "User-Agent": USER_AGENT
             })
         except Exception as exception:
-            logger.error("Connection for video id " + str(video_id) + " error: " + str(exception))
+            logger.error("Connection for video id {0} failed: {1}".format(episode.id, str(exception)))
+            xls.row += 1
+            xls._col = 0
             continue
 
         if req.status_code != 200:
-            logger.error("HTTP error code " + str(req.status_code) + "for video id " + str(video_id))
+            logger.error("HTTP error code {0} for video id {1]".format(req.status_code, episode.id))
+            xls.row += 1
+            xls._col = 0
             continue
 
         data = req.json()
-        dl_link = data["data"]["attributes"]["streaming"]["hls"]["url"]
+        video_link = data["data"]["attributes"]["streaming"]["hls"]["url"]
+        xls.worksheet.write(xls.row, xls.col(), video_link)
+        xls.worksheet.write(xls.row, xls.col(start=True),
+                            "youtube-dl \"{0}\" -o \"{1}.mp4\"".format(video_link, filename)
+                            )
 
-        table_data = (
-            [episode["name"], dl_link],
-        )
-        worksheet.write(row, col, episode["name"])
-        worksheet.write(row, col + 1, episode["description"])
-        worksheet.write(row, col + 2, episode["prettyName"])
-        worksheet.write(row, col + 3, dl_link)
-        worksheet.write(row, col + 4, "youtube-dl \"" + dl_link + "\" -o \"" + episode["prettyName"] + ".mp4\"")
-        row = row + 1
-
-    workbook.close()
+        xls.row += 1
 
 
-if __name__ == '__main__':
-    args = parser.parse_args()
-    sonic_token = get_sonic_token()
-    if not sonic_token:
-        sys.exit(1)
-    vid_data = get_dmax_ids(args.alternateId, args.s, args.e)
-    if not vid_data:
-        sys.exit(1)
-    get_dmax_links(sonic_token, vid_data)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Gets direct links for DMAX series")
+    parser.add_argument(
+        "alternateId",
+        type=str,
+        help="alternateId of the series (last part of URL)"
+    )
+    parser.add_argument(
+        "-s",
+        metavar="Season",
+        type=int,
+        default=0,
+        dest="season",
+        help="Season to get (default: 0 = all)"
+    )
+    parser.add_argument(
+        "-e",
+        metavar="Episode",
+        type=int,
+        default=0,
+        dest="episode",
+        help="Episode of season to get (default: 0 = all) - season MUST be set!"
+    )
+    parser.add_argument(
+        '--specials',
+        action='store_true',
+        default=False,
+        dest='includespecials',
+        help='Download specials'
+    )
+    arguments = parser.parse_args()
+    main(
+        showid=arguments.alternateId,
+        chosen_season=arguments.season,
+        chosen_episode=arguments.episode,
+        includespecials=arguments.includespecials
+    )
