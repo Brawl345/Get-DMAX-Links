@@ -144,7 +144,10 @@ class DMAX:
         self.show = Show(json["show"])
         self.seasons = []
         for seasonNumber in self.show.seasonNumbers:
-            season_json = json["videos"]["episode"][str(seasonNumber)]
+            try:
+                season_json = json["videos"]["episode"][str(seasonNumber)]
+            except KeyError:
+                continue
             self.seasons.append(Season(seasonNumber, season_json))
 
         self.specials = []
