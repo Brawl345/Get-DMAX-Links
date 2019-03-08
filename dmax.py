@@ -91,28 +91,28 @@ def main(showid, chosen_season=0, chosen_episode=0, includespecials=False):
     if includespecials:
         for special in show.specials:
             episodes.append(special)
-    else:
-        if chosen_season == 0 and chosen_episode == 0:  # Get EVERYTHING
-            for season in show.seasons:
+
+    if chosen_season == 0 and chosen_episode == 0:  # Get EVERYTHING
+        for season in show.seasons:
+            for episode in season.episodes:
+                episodes.append(episode)
+    elif chosen_season > 0 and chosen_episode == 0:  # Get whole season
+        for season in show.seasons:
+            if season.number == chosen_season:
                 for episode in season.episodes:
                     episodes.append(episode)
-        elif chosen_season > 0 and chosen_episode == 0:  # Get whole season
-            for season in show.seasons:
-                if season.number == chosen_season:
-                    for episode in season.episodes:
+        if not episodes:
+            logger.error("This season does not exist.")
+            return
+    else:  # Get single episode
+        for season in show.seasons:
+            if season.number == chosen_season:
+                for episode in season.episodes:
+                    if episode.episodeNumber == chosen_episode:
                         episodes.append(episode)
-            if not episodes:
-                logger.error("This season does not exist.")
-                return
-        else:  # Get single episode
-            for season in show.seasons:
-                if season.number == chosen_season:
-                    for episode in season.episodes:
-                        if episode.episodeNumber == chosen_episode:
-                            episodes.append(episode)
-            if not episodes:
-                logger.error("Episode not found.")
-                return
+        if not episodes:
+            logger.error("Episode not found.")
+            return
 
     if not episodes:
         logger.info("No Episodes to download.")
