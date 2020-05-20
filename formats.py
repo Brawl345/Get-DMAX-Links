@@ -2,20 +2,6 @@
 from datetime import datetime, timedelta
 
 
-class Image:
-    """Defines information about an image"""
-
-    def __init__(self, json):
-        """
-        Initializes the Image class with information for an image
-        :param json: String. Raw JSON
-        """
-
-        self.height = json["height"]
-        self.width = json["width"]
-        self.src = json["src"]
-
-
 class Show:
     """Defines information about a DMAX show"""
 
@@ -25,7 +11,6 @@ class Show:
         :param json: String. Raw JSON
         """
 
-        self.id = json["id"]
         self.alternateId = json["alternateId"]
         self.name = json["name"]
 
@@ -38,8 +23,8 @@ class Show:
         if "seasonNumbers" in json:
             self.seasonNumbers = json["seasonNumbers"]
 
-        if "image" in json:
-            self.image = Image(json["image"])
+    def __repr__(self):
+        return "DMAX-Show: {0}".format(self.name)
 
 
 class Episode:
@@ -52,6 +37,7 @@ class Episode:
         """
 
         self.id = json["id"]
+        json = json["attributes"]
         self.alternateId = json["alternateId"]
 
         if "airDate" in json:
@@ -60,27 +46,22 @@ class Episode:
         if "name" in json:
             self.name = json["name"]
 
-        if "title" in json:
-            self.title = json["title"]
-
         if "description" in json:
             self.description = json["description"]
 
-        if "episode" in json:
-            self.episode = json["episode"]
-
         if "episodeNumber" in json:
             self.episodeNumber = json["episodeNumber"]
+            self.episode = self.episodeNumber
         else:
             self.episodeNumber = None
-
-        if "season" in json:
-            self.season = json["season"]
+            self.episode = None
 
         if "seasonNumber" in json:
             self.seasonNumber = json["seasonNumber"]
+            self.season = self.seasonNumber
         else:
             self.seasonNumber = None
+            self.season = None
 
         if "publishStart" in json:
             self.publishStart = datetime.strptime(json["publishStart"], '%Y-%m-%dT%H:%M:%SZ')
@@ -91,42 +72,17 @@ class Episode:
         if "videoDuration" in json:
             self.videoDuration = timedelta(milliseconds=json["videoDuration"])
 
-        if "isFreePlayable" in json:
-            self.isFreePlayable = json["isFreePlayable"]
-
-        if "isPlayable" in json:
-            self.isPlayable = json["isPlayable"]
+        if "drmEnabled" in json:
+            self.drmEnabled = json["drmEnabled"]
 
         if "isNew" in json:
             self.isNew = json["isNew"]
 
-        if "image" in json:
-            self.image = Image(json["image"])
-
     def __repr__(self):
         return "Episode {0}: {1}".format(
-            self.episodeNumber if hasattr(self, "episodeNumber") else "?",
-            self.name
+                self.episodeNumber if hasattr(self, "episodeNumber") else "?",
+                self.name
         )
-
-
-class Season:
-    """Defines information about a season"""
-
-    def __init__(self, number, json):
-        """
-        Initializes the Season class with information for a season
-        :param number: Int. Season Number
-        :param json: String. Raw JSON
-        """
-
-        self.number = number
-        self.episodes = []
-        for episode in json:
-            self.episodes.append(Episode(episode))
-
-    def __repr__(self):
-        return "Season {0}".format(self.number)
 
 
 class DMAX:
@@ -138,19 +94,18 @@ class DMAX:
         :param json: String. Raw JSON
         """
 
-        if "show" not in json or "videos" not in json:
+        if "data" not in json or "included" not in json:
             raise Exception("Invalid JSON.")
 
-        self.show = Show(json["show"])
-        self.seasons = []
-        for seasonNumber in self.show.seasonNumbers:
-            try:
-                season_json = json["videos"]["episode"][str(seasonNumber)]
-            except KeyError:
-                continue
-            self.seasons.append(Season(seasonNumber, season_json))
+        self.show = None
+        for incl in json["included"]:
+            if "type" in incl and incl["type"] == "show":
+                self.show = Show(incl["attributes"])
+                break
 
-        self.specials = []
-        if "standalone" in json["videos"]:
-            for special in json["videos"]["standalone"]:
-                self.specials.append(Episode(special))
+        if not self.show:
+            raise Exception("No show data found.")
+
+        self.episodes = []
+        for episode in json["data"]:
+            self.episodes.append(Episode(episode))

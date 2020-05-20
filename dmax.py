@@ -2,6 +2,7 @@
 import argparse
 import logging
 import os
+import re
 
 import xlsxwriter
 from requests import get
@@ -12,10 +13,17 @@ logger = logging.getLogger("DMAX")
 logging.getLogger('requests.packages.urllib3.connectionpool').setLevel('WARNING')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-BASE_URL = "https://www.dmax.de/"
-API_URL = BASE_URL + "api/show-detail/{0}"
+API_BASE = "https://eu1-prod.disco-api.com"
+SHOW_INFO_URL = API_BASE + "/content/videos//?include=primaryChannel,primaryChannel.images,show,show.images," \
+                           "genres,tags,images,contentPackages&sort=-seasonNumber,-episodeNumber" \
+                           "&filter[show.id]={0}&filter[videoType]=EPISODE&page[number]=1&page[size]=100"
 PLAYER_URL = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
-USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0"
+
+
+def get_valid_filename(s):
+    s = str(s).strip().replace(' ', '_')
+    return re.sub(r'(?u)[^-\w.]', '', s)
 
 
 class WorkbookWriter:
@@ -56,7 +64,7 @@ class WorkbookWriter:
         self.workbook.close()
 
 
-def main(showid, chosen_season=0, chosen_episode=0, includespecials=False):
+def main(showid, chosen_season=0, chosen_episode=0):
     if chosen_episode < 0 or chosen_season < 0:
         print("ERROR: Episode/Season must be > 0.")
         return
@@ -64,9 +72,16 @@ def main(showid, chosen_season=0, chosen_episode=0, includespecials=False):
         print("ERROR: Season must be set.")
         return
 
+    logger.info("Getting Authorization token...")
+    try:
+        token = get(API_BASE + "/token?realm=dmaxde").json()["data"]["attributes"]["token"]
+    except Exception as e:
+        logger.critical("Connection error: {0}".format(str(e)))
+        return
+
     logger.info("Getting show data")
     try:
-        req = get(API_URL.format(showid))
+        req = get(SHOW_INFO_URL.format(showid), headers={"Authorization": "Bearer " + token})
     except Exception as e:
         logger.critical("Connection error: {0}".format(str(e)))
         return
@@ -80,36 +95,23 @@ def main(showid, chosen_season=0, chosen_episode=0, includespecials=False):
         logger.error("This show does not exist.")
         return
 
-    cookies = req.cookies.get_dict()
-    if "sonicToken" not in cookies:
-        logger.error("No sonicToken found, can not proceed")
-        return
-    token = cookies["sonicToken"]
     show = formats.DMAX(data)
+    logger.info("=> {0}".format(show.show.name))
 
     episodes = []
-    if includespecials:
-        for special in show.specials:
-            episodes.append(special)
-
     if chosen_season == 0 and chosen_episode == 0:  # Get EVERYTHING
-        for season in show.seasons:
-            for episode in season.episodes:
-                episodes.append(episode)
+        episodes = show.episodes
     elif chosen_season > 0 and chosen_episode == 0:  # Get whole season
-        for season in show.seasons:
-            if season.number == chosen_season:
-                for episode in season.episodes:
-                    episodes.append(episode)
+        for episode in show.episodes:
+            if episode.seasonNumber == chosen_season:
+                episodes.append(episode)
         if not episodes:
             logger.error("This season does not exist.")
             return
     else:  # Get single episode
-        for season in show.seasons:
-            if season.number == chosen_season:
-                for episode in season.episodes:
-                    if episode.episodeNumber == chosen_episode:
-                        episodes.append(episode)
+        for episode in show.episodes:
+            if episode.seasonNumber == chosen_season and episode.episodeNumber == chosen_episode:
+                episodes.append(episode)
         if not episodes:
             logger.error("Episode not found.")
             return
@@ -118,33 +120,33 @@ def main(showid, chosen_season=0, chosen_episode=0, includespecials=False):
         logger.info("No Episodes to download.")
         return
 
-    xlsname = "{0}.xlsx".format(showid)
+    xlsname = "{0}.xlsx".format(get_valid_filename(show.show.name))
     file_num = 0
     while os.path.isfile(xlsname):
         file_num += 1
-        xlsname = "{0}-{1}.xlsx".format(showid, file_num)
+        xlsname = "{0}-{1}.xlsx".format(get_valid_filename(show.show.name), file_num)
     xls = WorkbookWriter(xlsname)
 
+    length = len(episodes)
     for num, episode in enumerate(episodes):
-        logger.info("Getting link {0} of {1}".format(num + 1, len(episodes)))
-        if episode.season == "" and episode.episode == "":
+        logger.info("Getting link {0} of {1}".format(num + 1, length))
+        if not episode.season and not episode.episode:
             filename = "{show_name} - {episode_name}".format(
-                show_name=show.show.name,
-                episode_name=episode.name
+                    show_name=show.show.name,
+                    episode_name=episode.name
             )
-        elif episode.season == "" and episode.episode != "":
-            filename = "{show_name} - S{season}E{episode} - {episode_name}".format(
-                show_name=show.show.name,
-                season=episode.season,
-                episode=episode.episode,
-                episode_name=episode.name
+        elif not episode.season and episode.episode:
+            filename = "{show_name} - E{episode} - {episode_name}".format(
+                    show_name=show.show.name,
+                    episode=str(episode.episode).zfill(2),
+                    episode_name=episode.name
             )
         else:
             filename = "{show_name} - S{season}E{episode} - {episode_name}".format(
-                show_name=show.show.name,
-                season=episode.season,
-                episode=episode.episode,
-                episode_name=episode.name
+                    show_name=show.show.name,
+                    season=str(episode.season).zfill(2),
+                    episode=str(episode.episode).zfill(2),
+                    episode_name=episode.name
             )
         xls.worksheet.write(xls.row, xls.col(), episode.name)
         xls.worksheet.write(xls.row, xls.col(), episode.description)
@@ -153,7 +155,7 @@ def main(showid, chosen_season=0, chosen_episode=0, includespecials=False):
         try:
             req = get(PLAYER_URL + episode.id, headers={
                 "Authorization": "Bearer " + token,
-                "User-Agent": USER_AGENT
+                "User-Agent":    USER_AGENT
             })
         except Exception as exception:
             logger.error("Connection for video id {0} failed: {1}".format(episode.id, str(exception)))
@@ -176,41 +178,35 @@ def main(showid, chosen_season=0, chosen_episode=0, includespecials=False):
 
         xls.row += 1
 
+    logger.info("=> Saved to {0}".format(xlsname))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gets direct links for DMAX series")
     parser.add_argument(
-        "alternateId",
-        type=str,
-        help="alternateId of the series (last part of URL)"
+            "showId",
+            type=int,
+            help="showId of the series (check HTML page code)"
     )
     parser.add_argument(
-        "-s",
-        metavar="Season",
-        type=int,
-        default=0,
-        dest="season",
-        help="Season to get (default: 0 = all)"
+            "-s",
+            metavar="Season",
+            type=int,
+            default=0,
+            dest="season",
+            help="Season to get (default: 0 = all)"
     )
     parser.add_argument(
-        "-e",
-        metavar="Episode",
-        type=int,
-        default=0,
-        dest="episode",
-        help="Episode of season to get (default: 0 = all) - season MUST be set!"
-    )
-    parser.add_argument(
-        '--specials',
-        action='store_true',
-        default=False,
-        dest='includespecials',
-        help='Download specials'
+            "-e",
+            metavar="Episode",
+            type=int,
+            default=0,
+            dest="episode",
+            help="Episode of season to get (default: 0 = all) - season MUST be set!"
     )
     arguments = parser.parse_args()
     main(
-        showid=arguments.alternateId,
-        chosen_season=arguments.season,
-        chosen_episode=arguments.episode,
-        includespecials=arguments.includespecials
+            showid=arguments.showId,
+            chosen_season=arguments.season,
+            chosen_episode=arguments.episode
     )
