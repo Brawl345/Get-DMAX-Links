@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 API_BASE = "https://eu1-prod.disco-api.com"
 SHOW_INFO_URL = API_BASE + "/content/videos//?include=primaryChannel,primaryChannel.images,show,show.images," \
                            "genres,tags,images,contentPackages&sort=-seasonNumber,-episodeNumber" \
-                           "&filter[show.id]={0}&filter[videoType]=EPISODE&page[number]=1&page[size]=100"
+                           "&filter[show.id]={0}&filter[videoType]=EPISODE&page[number]={1}&page[size]=100"
 PLAYER_URL = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0"
 
@@ -64,12 +64,29 @@ class WorkbookWriter:
         self.workbook.close()
 
 
+def get_videos_from_api(showid, token, page):
+    try:
+        req = get(SHOW_INFO_URL.format(showid, page), headers={"Authorization": "Bearer " + token})
+    except Exception as e:
+        logger.critical("Connection error: {0}".format(str(e)))
+        return
+
+    if req.status_code != 200:
+        raise LookupError("This show does not exist.")
+
+    data = req.json()
+    if "errors" in data or not data.get("data"):
+        raise LookupError("This show does not exist.")
+
+    return data
+
+
 def main(showid, chosen_season=0, chosen_episode=0):
     if chosen_episode < 0 or chosen_season < 0:
-        print("ERROR: Episode/Season must be > 0.")
+        logger.error("Episode/Season must be > 0.")
         return
     if chosen_episode > 0 and chosen_season == 0:
-        print("ERROR: Season must be set.")
+        logger.error("Season must be set.")
         return
 
     logger.info("Getting Authorization token...")
@@ -81,19 +98,23 @@ def main(showid, chosen_season=0, chosen_episode=0):
 
     logger.info("Getting show data")
     try:
-        req = get(SHOW_INFO_URL.format(showid), headers={"Authorization": "Bearer " + token})
+        data = get_videos_from_api(showid, token, 1)
+    except LookupError as le:
+        logger.error(le)
+        return
     except Exception as e:
         logger.critical("Connection error: {0}".format(str(e)))
         return
 
-    if req.status_code != 200:
-        logger.error("This show does not exist.")
-        return
-
-    data = req.json()
-    if "errors" in data:
-        logger.error("This show does not exist.")
-        return
+    if data["meta"]["totalPages"] > 1:
+        logger.info("More than 100 videos, need to get more pages...")
+        for i in range(1, data["meta"]["totalPages"]):
+            logger.info("Getting page {0}...".format(i + 1))
+            more_data = get_videos_from_api(showid, token, i + 1)
+            if not more_data:
+                logger.info("Couldn't get page, skipping...")
+            else:
+                data["data"].extend(more_data["data"])
 
     show = formats.DMAX(data)
     logger.info("=> {0}".format(show.show.name))
