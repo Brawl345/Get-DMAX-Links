@@ -18,7 +18,8 @@ SHOW_INFO_URL = API_BASE + "/content/videos//?include=primaryChannel,primaryChan
                            "genres,tags,images,contentPackages&sort=-seasonNumber,-episodeNumber" \
                            "&filter[show.id]={0}&filter[videoType]=EPISODE&page[number]={1}&page[size]=100"
 PLAYER_URL = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0"
+REALMS = ["dmaxde", "hgtv", "tlcde"]
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101 Firefox/78.0"
 
 
 def get_valid_filename(s):
@@ -81,7 +82,7 @@ def get_videos_from_api(showid, token, page):
     return data
 
 
-def main(showid, chosen_season=0, chosen_episode=0):
+def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
     if chosen_episode < 0 or chosen_season < 0:
         logger.error("Episode/Season must be > 0.")
         return
@@ -89,9 +90,13 @@ def main(showid, chosen_season=0, chosen_episode=0):
         logger.error("Season must be set.")
         return
 
-    logger.info("Getting Authorization token...")
+    if realm not in REALMS:
+        logger.error("Invalid realm, must be one of {0}".format(", ".join(REALMS)))
+        return
+
+    logger.info("Getting Authorization token for {0}...".format(realm))
     try:
-        token = get(API_BASE + "/token?realm=dmaxde").json()["data"]["attributes"]["token"]
+        token = get(API_BASE + "/token?realm={0}".format(realm)).json()["data"]["attributes"]["token"]
     except Exception as e:
         logger.critical("Connection error: {0}".format(str(e)))
         return
@@ -225,9 +230,18 @@ if __name__ == "__main__":
             dest="episode",
             help="Episode of season to get (default: 0 = all) - season MUST be set!"
     )
+    parser.add_argument(
+            "-r",
+            metavar="Realm",
+            type=str,
+            default=REALMS[0],
+            dest="realm",
+            help="Realm (site) to download from. Must be one of: {0}".format(", ".join(REALMS))
+    )
     arguments = parser.parse_args()
     main(
             showid=arguments.showId,
             chosen_season=arguments.season,
-            chosen_episode=arguments.episode
+            chosen_episode=arguments.episode,
+            realm=arguments.realm
     )
