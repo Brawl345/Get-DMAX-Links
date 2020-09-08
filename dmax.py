@@ -209,11 +209,9 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
             elif req.status_code == 429:
                 logger.info("Received 429 Too Many Requests. Waiting {0} seconds to cool down!".format(currentFetchAttempt * 10))
                 time.sleep(currentFetchAttempt * 10)
-                continue
 
             else:
                 logger.error("HTTP error code {0} for video id {1}. Skipping.".format(req.status_code, episode.id))
-                continue
 
         else:
             logger.error("Episode URL could not be fetched. Skipping")
