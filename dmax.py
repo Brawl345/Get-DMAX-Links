@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import re
+import time
 
 import xlsxwriter
 from requests import get
@@ -154,8 +155,10 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
     xls = WorkbookWriter(xlsname)
 
     length = len(episodes)
+
     for num, episode in enumerate(episodes):
         logger.info("Getting link {0} of {1}".format(num + 1, length))
+
         if not episode.season and not episode.episode:
             filename = "{show_name} - {episode_name}".format(
                     show_name=show.show.name,
@@ -178,31 +181,45 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
         xls.worksheet.write(xls.row, xls.col(), episode.description)
         xls.worksheet.write(xls.row, xls.col(), filename)
 
-        try:
-            req = get(PLAYER_URL + episode.id, headers={
-                "Authorization": "Bearer " + token,
-                "User-Agent":    USER_AGENT
-            })
-        except Exception as exception:
-            logger.error("Connection for video id {0} failed: {1}".format(episode.id, str(exception)))
+        fetchAttempts = [1,2,3]
+
+        for currentFetchAttempt in fetchAttempts:
+            logger.info("Attempt {0} of {1}".format(currentFetchAttempt, len(fetchAttempts)))
+
+            try:
+                req = get(PLAYER_URL + episode.id, headers={
+                    "Authorization": "Bearer " + token,
+                    "User-Agent":    USER_AGENT
+                })
+            except Exception as exception:
+                logger.error("Connection for video id {0} failed: {1}".format(episode.id, str(exception)))
+                continue
+
+            if req.status_code == 200:
+                data = req.json()
+                video_link = data["data"]["attributes"]["streaming"]["hls"]["url"]
+                xls.worksheet.write(xls.row, xls.col(), video_link)
+                xls.worksheet.write(xls.row, xls.col(start=True),
+                                    "youtube-dl \"{0}\" -o \"{1}.mp4\"".format(video_link, filename)
+                                    )
+
+                xls.row += 1
+                break
+
+            elif req.status_code == 429:
+                logger.info("Received 429 Too Many Requests. Waiting {0} seconds to cool down!".format(currentFetchAttempt * 10))
+                time.sleep(currentFetchAttempt * 10)
+                continue
+
+            else:
+                logger.error("HTTP error code {0} for video id {1}. Skipping.".format(req.status_code, episode.id))
+                continue
+
+        else:
+            logger.error("Episode URL could not be fetched. Skipping")
             xls.row += 1
             xls._col = 0
-            continue
 
-        if req.status_code != 200:
-            logger.error("HTTP error code {0} for video id {1}".format(req.status_code, episode.id))
-            xls.row += 1
-            xls._col = 0
-            continue
-
-        data = req.json()
-        video_link = data["data"]["attributes"]["streaming"]["hls"]["url"]
-        xls.worksheet.write(xls.row, xls.col(), video_link)
-        xls.worksheet.write(xls.row, xls.col(start=True),
-                            "youtube-dl \"{0}\" -o \"{1}.mp4\"".format(video_link, filename)
-                            )
-
-        xls.row += 1
 
     logger.info("=> Saved to {0}".format(xlsname))
 
