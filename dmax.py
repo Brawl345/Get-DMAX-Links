@@ -190,7 +190,7 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
             continue
 
         if req.status_code != 200:
-            logger.error("HTTP error code {0} for video id {1]".format(req.status_code, episode.id))
+            logger.error("HTTP error code {0} for video id {1}".format(req.status_code, episode.id))
             xls.row += 1
             xls._col = 0
             continue
