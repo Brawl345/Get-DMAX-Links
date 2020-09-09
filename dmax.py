@@ -181,7 +181,7 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
         xls.worksheet.write(xls.row, xls.col(), episode.description)
         xls.worksheet.write(xls.row, xls.col(), filename)
 
-        fetchAttempts = [1,2,3]
+        fetchAttempts = range(1, 4, 1)
 
         for currentFetchAttempt in fetchAttempts:
             logger.info("Attempt {0} of {1}".format(currentFetchAttempt, len(fetchAttempts)))
