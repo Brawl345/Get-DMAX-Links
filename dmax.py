@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import re
+import time
 
 import xlsxwriter
 from requests import get
@@ -20,6 +21,7 @@ SHOW_INFO_URL = API_BASE + "/content/videos//?include=primaryChannel,primaryChan
 PLAYER_URL = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
 REALMS = ["dmaxde", "hgtv", "tlcde"]
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101 Firefox/78.0"
+NUM_OF_ATTEMPTS = 3
 
 
 def get_valid_filename(s):
@@ -178,29 +180,45 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
         xls.worksheet.write(xls.row, xls.col(), episode.description)
         xls.worksheet.write(xls.row, xls.col(), filename)
 
-        try:
-            req = get(PLAYER_URL + episode.id, headers={
-                "Authorization": "Bearer " + token,
-                "User-Agent":    USER_AGENT
-            })
-        except Exception as exception:
-            logger.error("Connection for video id {0} failed: {1}".format(episode.id, str(exception)))
-            xls.row += 1
-            xls._col = 0
-            continue
+        for attempt in range(NUM_OF_ATTEMPTS + 1):
+            try:
+                print("trying")
+                req = get(PLAYER_URL + episode.id, headers={
+                    "Authorization": "Bearer " + token,
+                    "User-Agent":    USER_AGENT
+                })
+            except Exception as exception:
+                logger.error("Connection for video id {0} failed: {1}".format(episode.id, str(exception)))
+                xls.row += 1
+                xls._col = 0
+                break
 
-        if req.status_code != 200:
-            logger.error("HTTP error code {0} for video id {1}".format(req.status_code, episode.id))
-            xls.row += 1
-            xls._col = 0
-            continue
+            if req.status_code == 429:
+                if attempt == NUM_OF_ATTEMPTS:
+                    logger.error("Couldn't get episode.")
+                    xls._col = 0
+                    break
 
-        data = req.json()
-        video_link = data["data"]["attributes"]["streaming"]["hls"]["url"]
-        xls.worksheet.write(xls.row, xls.col(), video_link)
-        xls.worksheet.write(xls.row, xls.col(start=True),
-                            "youtube-dl \"{0}\" -o \"{1}.mp4\"".format(video_link, filename)
-                            )
+                waittime = (attempt + 1) * 5
+                logger.error("Got rate-limited, waiting {0} seconds (attempt {1} of {2})...".format(waittime,
+                                                                                                    attempt + 1,
+                                                                                                    NUM_OF_ATTEMPTS))
+                time.sleep(waittime)
+                continue
+
+            if req.status_code != 200:
+                logger.error("HTTP error code {0} for video id {1}".format(req.status_code, episode.id))
+                xls.row += 1
+                xls._col = 0
+                break
+
+            data = req.json()
+            video_link = data["data"]["attributes"]["streaming"]["hls"]["url"]
+            xls.worksheet.write(xls.row, xls.col(), video_link)
+            xls.worksheet.write(xls.row, xls.col(start=True),
+                                "youtube-dl \"{0}\" -o \"{1}.mp4\"".format(video_link, filename)
+                                )
+            break
 
         xls.row += 1
 
@@ -208,7 +226,7 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Gets direct links for DMAX series")
+    parser = argparse.ArgumentParser(description="Gets direct links for DMAX and Discovery series")
     parser.add_argument(
             "showId",
             type=int,
