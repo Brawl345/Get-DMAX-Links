@@ -182,7 +182,6 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
 
         for attempt in range(NUM_OF_ATTEMPTS + 1):
             try:
-                print("trying")
                 req = get(PLAYER_URL + episode.id, headers={
                     "Authorization": "Bearer " + token,
                     "User-Agent":    USER_AGENT
