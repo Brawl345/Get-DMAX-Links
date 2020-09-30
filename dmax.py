@@ -21,7 +21,7 @@ SHOW_INFO_URL = API_BASE + "/content/videos//?include=primaryChannel,primaryChan
 PLAYER_URL = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
 REALMS = ["dmaxde", "hgtv", "tlcde"]
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101 Firefox/78.0"
-NUM_OF_ATTEMPTS = 3
+NUM_OF_ATTEMPTS = 6
 
 
 def get_valid_filename(s):
