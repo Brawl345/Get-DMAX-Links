@@ -18,6 +18,8 @@ API_BASE = "https://eu1-prod.disco-api.com"
 SHOW_INFO_URL = API_BASE + "/content/videos//?include=primaryChannel,primaryChannel.images,show,show.images," \
                            "genres,tags,images,contentPackages&sort=-seasonNumber,-episodeNumber" \
                            "&filter[show.id]={0}&filter[videoType]=EPISODE&page[number]={1}&page[size]=100"
+ASSET_INFO_URL = API_BASE + "/content/videos/{0}?include=primaryChannel,primaryChannel.images,show,show.images," \
+                            "genres,tags,images,contentPackages&sort=name&page[number]=1&page[size]=100"
 PLAYER_URL = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
 REALMS = ["dmaxde", "hgtv", "tlcde"]
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101 Firefox/78.0"
@@ -67,6 +69,26 @@ class WorkbookWriter:
         self.workbook.close()
 
 
+def get_showid_from_assetid(assetid, token):
+    try:
+        req = get(ASSET_INFO_URL.format(assetid), headers={"Authorization": "Bearer " + token})
+    except Exception as e:
+        logger.critical("Connection error: {0}".format(str(e)))
+        return
+
+    if req.status_code != 200:
+        raise LookupError("This show does not exist.")
+
+    data = req.json()
+    if "errors" in data or not data.get("data"):
+        raise LookupError("This show does not exist.")
+
+    try:
+        return data["data"]["relationships"]["show"]["data"]["id"]
+    except KeyError:
+        raise LookupError("No showId found.")
+
+
 def get_videos_from_api(showid, token, page):
     try:
         req = get(SHOW_INFO_URL.format(showid, page), headers={"Authorization": "Bearer " + token})
@@ -84,7 +106,7 @@ def get_videos_from_api(showid, token, page):
     return data
 
 
-def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
+def main(showid, isasset=False, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
     if chosen_episode < 0 or chosen_season < 0:
         logger.error("Episode/Season must be > 0.")
         return
@@ -103,14 +125,24 @@ def main(showid, chosen_season=0, chosen_episode=0, realm=REALMS[0]):
         logger.critical("Connection error: {0}".format(str(e)))
         return
 
+    if isasset:
+        logger.info("Getting showId...")
+        try:
+            showid = get_showid_from_assetid(showid, token)
+        except LookupError as le:
+            logger.error(le)
+            return
+        except Exception:
+            return
+        logger.info("=> " + showid)
+
     logger.info("Getting show data")
     try:
         data = get_videos_from_api(showid, token, 1)
     except LookupError as le:
         logger.error(le)
         return
-    except Exception as e:
-        logger.critical("Connection error: {0}".format(str(e)))
+    except Exception:
         return
 
     if data["meta"]["totalPages"] > 1:
@@ -232,6 +264,13 @@ if __name__ == "__main__":
             help="showId of the series (check HTML page code)"
     )
     parser.add_argument(
+            "--isasset",
+            default=False,
+            action="store_true",
+            dest="isAsset",
+            help="Set if this ID is an assetid instead of a showId"
+    )
+    parser.add_argument(
             "-s",
             metavar="Season",
             type=int,
@@ -258,6 +297,7 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
     main(
             showid=arguments.showId,
+            isasset=arguments.isAsset,
             chosen_season=arguments.season,
             chosen_episode=arguments.episode,
             realm=arguments.realm

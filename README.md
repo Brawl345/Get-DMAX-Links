@@ -15,10 +15,11 @@ Specify the shortcode ("realm") with `-r`.
 1. Clone repo
 2. `pip install -U -r requirements.txt`
     1. **NOTE**: On Linux you may have to call `pip3` because the normal pip will use Python 2
-3. `python dmax.py SHOWID [-s SEASON] [-e EPISODE] [-r REALM]`
+3. `python dmax.py SHOWID [--isasset] [-s SEASON] [-e EPISODE] [-r REALM]`
     1. **NOTE**: Same as above - you may need to call `python3` under Linux. This script WON'T work with Python 2!
     2. To get the show id, navigate to the page of the series you want to download, press CTRL+U to open the page source and search for "showid". It's inside a `<hyoga-player>` HTML tag.
-    3. For realms, see the supported sites above. Default is DMAX.de.
+    3. If you only find an assetid, just pass `--isasset` to the script and it will extract the showId first
+    4. For realms, see the supported sites above. Default is DMAX.de.
 4. Check help with `python dmax.py -h`
 
 ## How it works
