@@ -1,0 +1,56 @@
+on:
+  - push
+  - pull_request
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.17'
+
+      - name: Build
+        run: |
+          env GOOS=windows GOARCH=amd64 go build -o dist/get-dmax-links-win-x64.exe
+          env GOOS=windows GOARCH=386 go build -o dist/get-dmax-links-win-x86.exe
+          
+          env GOOS=darwin GOARCH=amd64 go build -o dist/get-dmax-links-darwin-amd64
+          env GOOS=darwin GOARCH=arm64 go build -o dist/get-dmax-links-darwin-arm64
+          
+          env GOOS=linux GOARCH=amd64 go build -o dist/get-dmax-links-linux-amd64
+          env GOOS=linux GOARCH=386 go build -o dist/get-dmax-links-linux-386
+          env GOOS=linux GOARCH=arm go build -o dist/get-dmax-links-linux-arm
+          env GOOS=linux GOARCH=arm64 go build -o dist/get-dmax-links-linux-arm64
+
+      - name: Compress binaries
+        uses: crazy-max/ghaction-upx@v1
+        with:
+          version: latest
+          files: |
+            ./dist/*
+          args: -fq --best
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: get-dmax-links-${{github.sha}}.zip
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 90
+

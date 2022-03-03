@@ -1,10 +1,2 @@
-# Byte-compiled / optimized / DLL files / pip
-__pycache__/
-*.py[cod]
-*$py.class
-src/
-.idea/
-venv/
-
-# data
+.idea
 *.xlsx
