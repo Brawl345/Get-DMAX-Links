@@ -20,13 +20,16 @@ Specify the shortcode ("realm") with `-r`.
 1. Navigate to "[Releases](https://github.com/Brawl345/Get-DMAX-Links/releases)"
 3. Download the binary for your system
 4. Use it: `get-dmax-links SHOWID [-s SEASON] [-e EPISODE] [-r REALM]`
-   1To get the show id, navigate to the page of the series you want to download, press CTRL+U to open the page source
+   1. To get the show id, navigate to the page of the series you want to download, press CTRL+U to open the page source
    and search for "showid". It's inside a `<hyoga-player>` HTML tag.
-    1. For realms, see the supported sites above. Default is DMAX.de.
+   2. For realms, see the supported sites above. Default is DMAX.de.
 7. Check help with `get-dmax-links --help`
 
 ## How it works
 
 1. Contacts Discovery API to get tokens and show + video data
 2. Sends token and video id(s) to the player API which returns the link(s)
+
+![Screenshot](./screenshot.png?raw=true)
+
 
