@@ -1,0 +1,69 @@
+name: Build
+on:
+  - push
+  - pull_request
+
+env:
+  NAME: get-dmax-links
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        GOOS: [ windows, linux, darwin ]
+        GOARCH: [ amd64, 386, arm, arm64 ]
+        exclude:
+          - GOOS: windows
+            GOARCH: arm
+          - GOOS: darwin
+            GOARCH: 386
+          - GOOS: darwin
+            GOARCH: arm
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.17'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.GOOS }}
+          GOARCH: ${{ matrix.GOARCH }}
+        run: go build -o dist/$NAME-$GOOS-$GOARCH
+
+      - name: Rename binaries (Windows)
+        if: matrix.GOOS == 'windows'
+        run: for x in dist/$NAME-windows-*; do mv $x $x.exe; done
+
+      - name: Compress binary
+        if: matrix.GOOS != 'windows' || matrix.GOARCH != 'arm64'
+        uses: crazy-max/ghaction-upx@v1
+        with:
+          version: latest
+          files: |
+            ./dist/*
+          args: -fq --best
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{env.NAME}}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}-${{github.sha}}
+          path: dist/*
+          retention-days: 90
+
