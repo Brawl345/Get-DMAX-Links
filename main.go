@@ -29,7 +29,7 @@ func getValidFileName(showName string) string {
 	re := regexp.MustCompile(`[^-\w.]`)
 	newName := strings.TrimSpace(showName)
 	newName = strings.ReplaceAll(newName, " ", "_")
-	newName = re.ReplaceAllString(newName, "$1$1")
+	newName = re.ReplaceAllString(newName, "")
 	return newName
 }
 
