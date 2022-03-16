@@ -45,7 +45,7 @@ jobs:
         env:
           GOOS: ${{ matrix.GOOS }}
           GOARCH: ${{ matrix.GOARCH }}
-        run: go build -o dist/$NAME-$GOOS-$GOARCH
+        run: go build -ldflags="-s -w" -o dist/$NAME-$GOOS-$GOARCH
 
       - name: Rename binaries (Windows)
         if: matrix.GOOS == 'windows'
