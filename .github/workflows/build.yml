@@ -4,6 +4,7 @@ on:
   - pull_request
 
 env:
+  GOVER: ^1.18
   NAME: get-dmax-links
 
 jobs:
@@ -39,7 +40,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v2
         with:
-          go-version: '^1.18'
+          go-version: ${{ env.GOVER }}
 
       - name: Build
         env:
