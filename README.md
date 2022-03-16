@@ -1,5 +1,7 @@
-Get DMAX Links
-==============
+# Get DMAX Links
+
+[![Build](https://github.com/Brawl345/Get-DMAX-Links/actions/workflows/build.yml/badge.svg)](https://github.com/Brawl345/Get-DMAX-Links/actions/workflows/build.yml)
+
 This handy program gets links of a show from Discovery. You can also specify a season with `-s` and an episode with `-e`
 .
 
@@ -31,5 +33,3 @@ Specify the shortcode ("realm") with `-r`.
 2. Sends token and video id(s) to the player API which returns the link(s)
 
 ![Screenshot](./screenshot.png?raw=true)
-
-
