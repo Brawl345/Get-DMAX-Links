@@ -319,7 +319,6 @@ func main() {
 				} else {
 					log.Println(err)
 				}
-				currentRow += 1
 				continue
 			}
 			xlsx.SetCellValue(worksheet, fmt.Sprintf("D%d", currentRow), url)
