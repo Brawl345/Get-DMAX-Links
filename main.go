@@ -295,9 +295,9 @@ func main() {
 		if episode.Attributes.Season == 0 && episode.Attributes.Episode == 0 {
 			filename = fmt.Sprintf("%s - %s", show.Name, episode.Attributes.Name)
 		} else if episode.Attributes.Season == 0 && episode.Attributes.Episode != 0 {
-			filename = fmt.Sprintf("%s - E%02d", show.Name, episode.Attributes.Episode)
+			filename = fmt.Sprintf("%s - E%02d - %s", show.Name, episode.Attributes.Episode, episode.Attributes.Name)
 		} else {
-			filename = fmt.Sprintf("%s - S%02dE%02d", show.Name, episode.Attributes.Season, episode.Attributes.Episode)
+			filename = fmt.Sprintf("%s - S%02dE%02d - %s", show.Name, episode.Attributes.Season, episode.Attributes.Episode, episode.Attributes.Name)
 		}
 
 		xlsx.SetCellValue(worksheet, fmt.Sprintf("A%d", currentRow), episode.Attributes.Name)
