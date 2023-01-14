@@ -148,8 +148,7 @@ func parseArgs() (structs.Flags, error) {
 
 	parser := argparse.NewParser("get-dmax-links", `Gets direct links for DMAX and Discovery series.
 	
-	You need the showId of the show you want to get the links for. Take a look at this list:
-	https://gist.github.com/Akamaru/3646c47b68cccead419716f3c4a7e86e`, &argparse.ParserConfig{
+	You need the showId of the show you want to get the links for. See the README.`, &argparse.ParserConfig{
 		WithHint:           true,
 		AddShellCompletion: true,
 	})
@@ -157,7 +156,7 @@ func parseArgs() (structs.Flags, error) {
 	flags.ShowId = parser.Int("id", "showId", &argparse.Option{
 		Required:   true,
 		Positional: true,
-		Help:       "showId of the series",
+		Help:       "showId of the series (see README)",
 	})
 
 	flags.Realm = parser.String("r", "realm", &argparse.Option{

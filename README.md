@@ -20,12 +20,14 @@ Specify the shortcode ("realm") with `-r`.
 ## Usage
 
 1. Navigate to "[Releases](https://github.com/Brawl345/Get-DMAX-Links/releases)"
-3. Download the binary for your system
-4. Use it: `get-dmax-links SHOWID [-s SEASON] [-e EPISODE] [-r REALM]`
-   1. To get the show id, navigate to the page of the series you want to download, press CTRL+U to open the page source
-   and search for "showid". It's inside a `<hyoga-player>` HTML tag.
-   2. For realms, see the supported sites above. Default is DMAX.de.
-7. Check help with `get-dmax-links --help`
+2. Download the binary for your system
+3. Use it: `get-dmax-links SHOWID [-s SEASON] [-e EPISODE] [-r REALM]`
+   1. To get the show id, click one of these links, search for the show and copy the "showId" value:
+      - DMAX: https://de-api.loma-cms.com/feloma/page/sendungen/?environment=dmax&v=2
+      - TLC: https://de-api.loma-cms.com/feloma/page/sendungen/?environment=tlc&v=2
+      - HGTV: https://de-api.loma-cms.com/feloma/page/sendungen/?environment=hgtv&v=2
+   2. For realms, see the supported sites above. Default is DMAX.de (dmaxde).
+4. Check help with `get-dmax-links --help`
 
 ## How it works
 
