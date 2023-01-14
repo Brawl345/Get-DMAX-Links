@@ -321,7 +321,7 @@ func main() {
 				continue
 			}
 			xlsx.SetCellValue(worksheet, fmt.Sprintf("D%d", currentRow), url)
-			xlsx.SetCellValue(worksheet, fmt.Sprintf("E%d", currentRow), fmt.Sprintf("youtube-dl \"%s\" -o \"%s.mp4\"", url, filename))
+			xlsx.SetCellValue(worksheet, fmt.Sprintf("E%d", currentRow), fmt.Sprintf("yt-dlp \"%s\" -o \"%s.mp4\"", url, filename))
 			currentRow += 1
 			break
 		}
