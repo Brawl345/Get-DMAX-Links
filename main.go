@@ -148,7 +148,8 @@ func parseArgs() (structs.Flags, error) {
 
 	parser := argparse.NewParser("get-dmax-links", `Gets direct links for DMAX and Discovery series.
 	
-	You need the showId of the show you want to get the links for. See the README.`, &argparse.ParserConfig{
+	You need the showId of the show you want to get the links for. See the README:
+	https://github.com/Brawl345/Get-DMAX-Links`, &argparse.ParserConfig{
 		WithHint:           true,
 		AddShellCompletion: true,
 	})

@@ -65,8 +65,6 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{env.NAME}}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}-${{github.sha}}
-          path: |
-            dist/*
-            README.md
+          path: dist/*
           retention-days: 90
 
