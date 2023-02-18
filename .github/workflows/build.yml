@@ -52,15 +52,6 @@ jobs:
         if: matrix.GOOS == 'windows'
         run: for x in dist/$NAME-windows-*; do mv $x $x.exe; done
 
-      - name: Compress binary
-        if: matrix.GOOS != 'windows' || matrix.GOARCH != 'arm64'
-        uses: crazy-max/ghaction-upx@v2
-        with:
-          version: latest
-          files: |
-            ./dist/*
-          args: -fq --best
-
       - name: Upload binary
         uses: actions/upload-artifact@v3
         with:
