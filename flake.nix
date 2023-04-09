@@ -34,6 +34,12 @@
 
           ldflags = [ "-s" "-w" ];
 
+          nativeBuildInputs = [ pkgs.installShellFiles ];
+          postInstall = ''
+            installShellCompletion --cmd get-dmax-links \
+              --bash <($out/bin/get-dmax-links --completion)
+          '';
+
           meta = {
             description = "Get links of Discovery shows and a specific season and/or episode";
             homepage = "https://github.com/Brawl345/Get-DMAX-Links";
