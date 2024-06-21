@@ -1,6 +1,6 @@
 module github.com/Brawl345/get-dmax-links
 
-go 1.17
+go 1.18
 
 require (
 	github.com/hellflame/argparse v1.10.0

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,8 +20,10 @@ import (
 
 const ApiBase = "https://eu1-prod.disco-api.com"
 const ShowInfoUrl = ApiBase + "/content/videos/?include=primaryChannel,primaryChannel.images,show,show.images,genres,tags,images,contentPackages&sort=-seasonNumber,-episodeNumber&filter[show.id]=%d&filter[videoType]=EPISODE&page[number]=%d&page[size]=100"
-const PlayerUrl = "https://sonic-eu1-prod.disco-api.com/playback/videoPlaybackInfo/"
-const UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0"
+const PlayerUrl = ApiBase + "/playback/v3/videoPlaybackInfo"
+const UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/127.0"
+const DeviceInfo = "STONEJS/1 (Unknown/Unknown; Unknown/Unknown; Unknown)"
+const DiscoClient = "Alps:HyogaPlayer:0.0.0"
 const MaxAttempts = 6
 
 var REALMS = []string{"dmaxde", "hgtv", "tlcde"}
@@ -50,7 +53,7 @@ func contains(stack []string, needle string) bool {
 	return false
 }
 
-func doRequest(url string, token string, result interface{}) error {
+func doRequest(url string, token string, result any) error {
 	client := http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -61,6 +64,58 @@ func doRequest(url string, token string, result interface{}) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
 	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("X-Device-Info", DeviceInfo)
+	req.Header.Set("X-Disco-Client", DiscoClient)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode == 429 {
+		return &structs.RateLimitError{}
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("got HTTP status code %d", resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return errors.New("could not read body")
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return errors.New("can not unmarshal JSON")
+	}
+
+	return nil
+}
+
+func doPostRequest(url string, token string, input any, result any) error {
+	var reqBody io.Reader
+	jsonData, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	reqBody = bytes.NewBuffer(jsonData)
+
+	client := http.Client{}
+	req, err := http.NewRequest("POST", url, reqBody)
+	if err != nil {
+		return err
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("X-Device-Info", DeviceInfo)
+	req.Header.Set("X-Disco-Client", DiscoClient)
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -128,11 +183,24 @@ func getShow(showId int, token string, page int) (structs.GetShowResponse, error
 }
 
 func getVideoUrl(token, episodeId string) (string, error) {
+	request := &structs.GetVideoUrlRequest{
+		DeviceInfo: structs.DeviceInfo{
+			AdBlocker:              false,
+			DrmSupported:           false,
+			HdrCapabilities:        []string{"SDR"},
+			HwDecodingCapabilities: []string{},
+			SoundCapabilities:      []string{"STEREO"},
+		},
+		WisteriaProperties: struct{}{},
+		VideoId:            episodeId,
+	}
+
 	var result structs.GetVideoUrlResponse
 
-	err := doRequest(
-		PlayerUrl+episodeId,
+	err := doPostRequest(
+		PlayerUrl,
 		token,
+		request,
 		&result,
 	)
 
@@ -140,7 +208,11 @@ func getVideoUrl(token, episodeId string) (string, error) {
 		return "", err
 	}
 
-	return result.Data.Attributes.Streaming.Hls.Url, nil
+	if len(result.Data.Attributes.Streaming) == 0 {
+		return "", errors.New("no streaming URL found")
+	}
+
+	return result.Data.Attributes.Streaming[0].Url, nil
 }
 
 func parseArgs() (structs.Flags, error) {

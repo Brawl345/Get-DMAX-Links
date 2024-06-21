@@ -47,13 +47,26 @@ type Show struct {
 	Seasons     int    `json:"seasonNumber"`
 }
 
+type DeviceInfo struct {
+	AdBlocker              bool     `json:"adBlocker"`
+	DrmSupported           bool     `json:"drmSupported"`
+	HdrCapabilities        []string `json:"hdrCapabilities"`
+	HwDecodingCapabilities []string `json:"hwDecodingCapabilities"`
+	SoundCapabilities      []string `json:"soundCapabilities"`
+}
+
+type GetVideoUrlRequest struct {
+	DeviceInfo         DeviceInfo `json:"deviceInfo"`
+	WisteriaProperties struct {
+	} `json:"wisteriaProperties"`
+	VideoId string `json:"videoId"`
+}
+
 type GetVideoUrlResponse struct {
 	Data struct {
 		Attributes struct {
-			Streaming struct {
-				Hls struct {
-					Url string `json:"url"`
-				} `json:"hls"`
+			Streaming []struct {
+				Url string `json:"url"`
 			} `json:"streaming"`
 		} `json:"attributes"`
 	} `json:"data"`
