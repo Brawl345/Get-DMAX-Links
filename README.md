@@ -23,6 +23,7 @@ Specify the shortcode ("realm") with `-r`.
 2. Download the binary for your system
 3. Use it: `get-dmax-links SHOWID [-s SEASON] [-e EPISODE] [-r REALM]`
    1. To get the show id, click one of these links, search for the show and copy the "showId" value:
+      - **NEW:** Use this simple web page and search directly for the ID: https://discover-discovery.vercel.app/
       - DMAX: https://de-api.loma-cms.com/feloma/page/sendungen/?environment=dmax&v=2
       - TLC: https://de-api.loma-cms.com/feloma/page/sendungen/?environment=tlc&v=2
       - HGTV: https://de-api.loma-cms.com/feloma/page/sendungen/?environment=hgtv&v=2
